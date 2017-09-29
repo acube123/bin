@@ -11,7 +11,7 @@ mkdir -p ~/.bash
 cp $BASE_DIR/rc/git-completion.bash ~/.bash/
 
 # Update screenrc
-for rc_file in screenrc vimrc; do
+for rc_file in screenrc vimrc aliases; do
   [[ -f ~/.${rc_file} ]] && mv ~/.${rc_file} ~/.${rc_file}.bak
   cat $BASE_DIR/rc/${rc_file} > ~/.${rc_file} # Overwrite
 done
