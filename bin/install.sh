@@ -1,5 +1,6 @@
 #!/bin/bash
-BASE_DIR=`dirname $0`
+BIN_DIR=`dirname $0`
+BASE_DIR=`dirname $BIN_DIR`
 echo BASE_DIR is $BASE_DIR
 
 # Update bashrc
