@@ -1,0 +1,499 @@
+" Copyright (c) YugaByte, Inc.
+"
+" YugaByte's default Vim configuration. Any of this can obviously be customized in a personal
+" ~/.vimrc.
+
+set backspace=2
+set shiftwidth=2
+set softtabstop=2
+
+set autochdir
+set autoindent
+set autowrite
+set expandtab
+set hlsearch
+set incsearch
+
+" Prevent automatic wrapping at textwidth.
+" http://stackoverflow.com/questions/15724919/how-do-i-prevent-vim-from-auto-wrapping-at-column-80
+set nowrap
+
+set number  " Show line numbers.
+set ruler
+
+" http://usevim.com/2013/07/05/sessions/
+set sessionoptions=blank,buffers,folds,help,options,winsize
+
+syntax on
+
+filetype plugin on
+filetype on
+
+" Get the directory of this script.
+" http://stackoverflow.com/questions/4976776/how-to-get-path-to-the-current-vimscript-being-executed
+let g:yb_devtools_vim_dir = fnamemodify(resolve(expand('<sfile>:p')), ':h')
+
+" An easy way to load other Vim files from the same directory this script is in.
+function! SourceYBVimFile(file_name)
+  execute('source ' . fnameescape(g:yb_devtools_vim_dir . '/' . a:file_name))
+endfunction
+
+" -------------------------------------------------------------------------------------------------
+" General advice
+"
+" Use this to find unmapped keys in vi. Some of these might still be unmapped in vim.
+" http://hea-www.harvard.edu/~fine/Tech/vi.html
+
+" -------------------------------------------------------------------------------------------------
+" Common configuration
+"
+" http://usevim.com/2012/07/20/vim101-leader/
+" The <leader> key is a reference to a specific key defined by the mapleader variable. A lot of
+" people change to comma because they find it easier to type:
+
+let mapleader=","
+
+" -------------------------------------------------------------------------------------------------
+" Inclusions
+
+"call SourceYBVimFile('yb_cxx_support.vim')
+"call SourceYBVimFile('yb_plugin_conf.vim')
+
+" -------------------------------------------------------------------------------------------------
+" General-purpose shortcuts / key combinations
+
+function! IsNerdTreeBufName(buf_name)
+  return match(a:buf_name, '^NERD_tree_') == 0
+endfunction
+
+function! IsTagbarBufName(buf_name)
+  return match(a:buf_name, '^__Tagbar__[.]') == 0
+endfunction
+
+function! IsRegularEditorBufName(buf_name)
+  return !IsNerdTreeBufName(a:buf_name) && !IsTagbarBufName(a:buf_name)
+endfunction
+
+function! InRegularEditorBuffer()
+  return IsRegularEditorBufName(expand('%'))
+endfunction
+
+function! IsRegularEditorWindowByNumber(win_index)
+  let l:buf_name = bufname(winbufnr(a:win_index))
+  return IsRegularEditorBufName(l:buf_name)
+endfunction
+
+function! IsNerdTreeWindowByNumber(win_index)
+  let l:buf_name = bufname(winbufnr(a:win_index))
+  return IsNerdTreeBufName(l:buf_name)
+endfunction
+
+function! RunOneBufferSwitchCommand(buffer_switch_command)
+  execute a:buffer_switch_command
+  if !InRegularEditorBuffer()
+    " Oops, we accidentally got into NERDTree or Tagbar, etc., get out on the other side.
+    execute a:buffer_switch_command
+  endif
+endfunction
+
+function! SwitchBufferIfInRegularWindow(buffer_switch_command)
+  if InRegularEditorBuffer()
+    call RunOneBufferSwitchCommand(a:buffer_switch_command)
+  else
+    " We are in special-purpose window (e.g. NERDTree / Tagbar), try to switch to another window and
+    " then move to a different buffer as directed by the command we're given.
+    execute("normal! \<C-w>l")
+    " If we got out of the special-purpose window, run the same command. Otherwise, give up.
+    if InRegularEditorBuffer()
+      call RunOneBufferSwitchCommand(a:buffer_switch_command)
+    endif
+  endif
+endfunction
+
+" Next/previous buffers.
+nnoremap <C-h> :call SwitchBufferIfInRegularWindow(":bprev")<cr>
+nnoremap <C-l> :call SwitchBufferIfInRegularWindow(":bnext")<cr>
+
+" Clear current line. The shortcut 'eu' was inspired by the ^E ^U shortcut combination in Bash's
+" default mode of editing the command line, which jumps to the end of the line and deletes all
+" characters.
+"
+" This uses the "black hole register" to avoid copying the deleted text.
+" http://stackoverflow.com/questions/11993851/how-to-delete-not-cut-in-vim
+nnoremap <leader>eu 0"_d$
+" Another version of the same action, for the insert mode. This keeps us in insert mode.
+inoremap <C-e><C-u> <esc>0"_d$i
+
+" Another convenient key from Bash: CTRL-U deletes to the beginning of the line in insert mode.
+inoremap <C-u> <esc>v0"_di
+
+" Quickly insert empty lines in normal mode. This also deletes anything that automatically gets
+" added to the new line, e.g. any continuation of a multi-line comment block.
+nnoremap <leader><enter> 0O<esc>0d$
+
+" Reload the current file from disk.
+nnoremap <leader>r :edit!<cr>
+
+" A convenient mode for pasting the clipboard. Note that this turns autoindent back on.
+nnoremap <leader>p <esc>:set paste<cr>0i
+nnoremap <leader>np :set nopaste<cr>
+
+" http://vim.wikia.com/wiki/Search_and_replace_the_word_under_the_cursor
+nnoremap <leader>sr :%s/\<<C-r><C-w>\>/
+
+" From http://stackoverflow.com/questions/3092911/whats-the-difference-between-update-and-w-in-vim:
+"
+" Whenever we type :w, VIM will literally write the buffer to the file, no matter the buffer is
+" empty or not. That MEANs it will update the timestamp of the file to the time :w typed, even if
+" the contents of the file did NOT actually change.
+"
+" While with :update, just like the vim help manual says, the VIM will ONLY update the timestamp
+" when the file has been changed.
+nnoremap <leader>w :update<cr>
+
+" Edit the .vimrc file
+" TODO: make this a no-op in case we are in the NERDTree window.
+nnoremap <leader>ev :find $MYVIMRC<cr>
+nnoremap <leader>eyv :find ~/code/devtools/vim/yb_vimrc.vim<cr>
+nnoremap <leader>eyvp :find ~/code/devtools/vim/yb_plugin_conf.vim<cr>
+
+nnoremap <leader>\| :vsplit<cr>
+
+" An operator-pending mapping allowing to yank/delete/etc. an entire Bash function.
+" E.g. type ybfn in normal mode to yank an entire function, dbfn to yank and delete it.
+" http://learnvimscriptthehardway.stevelosh.com/chapters/15.html
+" - Go to the beginning of the line
+" - Switch to visual mode
+" - Go back to the nearest '{' character
+" - Jump to the matching '}' character at the end of the function body.
+" - Jump to the beginning of the line containing the last '}' character of the function.
+" - Go to the next line.
+onoremap bfn :<c-u>normal! ^v$F{%^j<cr>
+
+" End of the 'general-purpose shorcuts / key combinations' section.
+" -------------------------------------------------------------------------------------------------
+
+" Drawing a horizontal line like this: ------------------------------------------------------------
+" ...or like this: ================================================================================
+
+function! FillToEndOfLineWithChar(fill_char)
+  " Trim trailing whitespace from the line first.
+  execute("normal! 0v$:s/\\s*$//\<cr>")
+  let l:line_length = strlen(getline('.'))
+  let l:target_length = 99
+  if l:line_length == 0
+    " Fill the whole line.
+    execute("normal! A\<esc>" . (l:target_length - l:line_length) . "A" . a:fill_char . "\<esc>")
+  else
+    " Add a space after existing text, then draw a line to the target width.
+    execute("normal! A \<esc>")
+    execute("normal! " . (l:target_length - 1 - l:line_length) . "A" . a:fill_char . "\<esc>")
+  endif
+endfunction
+
+nnoremap <leader>-- :call FillToEndOfLineWithChar('-')<cr>
+nnoremap <leader>== :call FillToEndOfLineWithChar('=')<cr>
+
+" -------------------------------------------------------------------------------------------------
+" Text width / print margin / color column
+
+set textwidth=100
+set colorcolumn=101
+
+" Toggle highlighting of columns
+function! ToggleColorColumn()
+  if &colorcolumn
+    set colorcolumn=
+  else
+    set colorcolumn=101
+  endif
+endfun
+
+" From https://jonasjacek.github.io/colors/:
+" 232 Grey3 #080808
+" 233 Grey7 #121212
+" 234 Grey11  #1c1c1c
+" 235 Grey15  #262626
+" 236 Grey19  #303030
+" 237 Grey23  #3a3a3a
+" 238 Grey27  #444444
+" 239 Grey30  #4e4e4e
+" 240 Grey35  #585858
+" 241 Grey39  #626262
+" 242 Grey42  #6c6c6c
+" 243 Grey46  #767676
+" 244 Grey50  #808080
+" 245 Grey54  #8a8a8a
+" 246 Grey58  #949494
+" 247 Grey62  #9e9e9e
+" 248 Grey66  #a8a8a8
+" 249 Grey70  #b2b2b2
+" 250 Grey74  #bcbcbc
+" 251 Grey78  #c6c6c6
+" 252 Grey82  #d0d0d0
+" 253 Grey85  #dadada
+" 254 Grey89  #e4e4e4
+" 255 Grey93  #eeeeee
+
+highlight ColorColumn ctermbg=236
+" Toggle the 'print margin' (hence the 'm' shortcut).
+nnoremap ,m :call ToggleColorColumn()<cr>
+
+" A shortcut for toggling line numbers
+function! ToggleLineNumbers()
+  set number!
+endfun
+nnoremap <leader>ln :call ToggleLineNumbers()<cr>
+
+" -------------------------------------------------------------------------------------------------
+" Colors
+" http://vim.wikia.com/wiki/256_colors_in_vim
+set t_Co=256
+
+" Chart of color names:
+" (we still need to use numbers in ctermfg=... and ctermg=...).
+" https://jonasjacek.github.io/colors/
+
+" Customizing tab bar highlighting:
+" http://stackoverflow.com/questions/7238113/customising-the-colours-of-vims-tab-bar
+"
+" There are three items in the tab line that can be customized to your liking: TabLine, TabLineSel
+" and TabLineFill.
+
+" TabLine - are the labels which are not currently active.
+hi TabLine     ctermfg=Gray       ctermbg=Black
+
+" TabLineFill - is the remaining of the tabline where there is no labels (background).
+hi TabLineFill ctermfg=Black      ctermbg=Black
+
+" TabLineSel - is the current (so to say) active tab label.
+hi TabLineSel  ctermfg=Blue       ctermbg=Gray
+
+" This line affects the window counter per tab:
+hi Title       ctermfg=Cyan       ctermbg=Black
+
+
+" Disable the macro recording feature that is usually triggered when q is pressed:
+" http://stackoverflow.com/questions/1527784/what-is-vim-recording-and-how-can-it-be-disabled
+nnoremap q <Nop>
+
+" Line number color
+highlight LineNr ctermfg=darkgrey
+
+" Show trailing whitespace
+" Based on instructions from http://vim.wikia.com/wiki/VimTip396
+" Using the name "GroupForExtraWhitespace" to reduce the probability of collision with other
+" highlight group names.
+"
+" From https://jonasjacek.github.io/colors/:
+" 17  NavyBlue  #00005f
+" 18  DarkBlue  #000087
+" 19  Blue3 #0000af
+" 20  Blue3 #0000d7
+" 21  Blue1 #0000ff
+
+highlight GroupForExtraWhitespace ctermbg=19
+match GroupForExtraWhitespace /\s\+$/
+
+highlight GroupForTabLiterals ctermbg=Red
+match GroupForTabLiterals /\t/
+
+" TODO: there is probably a better framework in Vim to deal with per-file-type settings.
+augroup PythonSettings
+  autocmd!
+  " The following does not work for some reason:
+  " autocmd BufWinEnter *.py set backspace=4
+  autocmd BufWinEnter *.py set shiftwidth=4
+  autocmd BufWinEnter *.py set softtabstop=4
+augroup END
+
+" -------------------------------------------------------------------------------------------------
+" Finding and quickly opening files by name.
+" TODO: make this project-specific
+" Now this is very specific to the main yugabyte codebase.
+set path=.,/usr/include,,src/**,build/**/*.pb.h,build/**/*.pb.cc,build-support/**
+
+" A shortcut for typing ':find '
+nnoremap <leader>f :find<space>
+
+" -------------------------------------------------------------------------------------------------
+" Removing trailing whitespace.
+
+" <SID> is a unique identifier allowing to avoid function name conflicts with other scripts.
+function! <SID>RemoveTrailingWhitespaces()
+  let l = line(".")
+  let c = col(".")
+  %s/\s\+$//e
+  call cursor(l, c)
+endfun
+
+nnoremap <leader>tw :call <SID>RemoveTrailingWhitespaces()<cr>
+
+" -------------------------------------------------------------------------------------------------
+" Reload vim configuration
+if !exists('*ReloadMYVIMRC')
+  fun! ReloadMYVIMRC()
+    source $MYVIMRC
+  endfun
+endif
+
+" Save the current buffer and reload Vim configuration.
+nnoremap <leader><F5> :update<cr>:call ReloadMYVIMRC()<cr>
+
+" -------------------------------------------------------------------------------------------------
+function! SwitchToWindowByNumber(win_nr)
+  execute(a:win_nr . "wincmd w")
+endfunction
+
+" Tries to switch to the 'opposite' window in a split layout. Returns a true-ish value in case of
+" success.
+function! SwitchToOppositeWindow()
+  let l:success = 0
+  if InRegularEditorBuffer()
+    let l:initial_win_nr = winnr()
+    " Look left and right of the initial window for another window that is not a NERDTree one.
+    for l:direction in ['l', 'h']
+      execute("normal! \<C-w>" . l:direction)
+      let l:current_win_nr = winnr()
+      if l:current_win_nr != l:initial_win_nr && IsRegularEditorWindowByNumber(l:current_win_nr)
+        let l:success = 1
+        break
+      endif
+      call SwitchToWindowByNumber(l:initial_win_nr)
+    endfor
+  endif
+
+  if !l:success
+    echo "Could not switch to opposite window, no other window or we are in NERDTree?"
+  end
+  return l:success
+endfunction
+
+" Save any unsaved changes in the other window.
+function! EnsureChangesSaved()
+  execute("normal! :update<cr>")
+endfunction
+
+function! OpenBufferByName(file_name)
+  if type(a:file_name) == v:t_list
+    let l:file_names = a:file_name
+  else
+    let l:file_names = [a:file_name]
+  endif
+  for l:file_name in l:file_names
+    let l:buffer_number = bufnr(l:file_name)
+    if l:buffer_number == -1
+      if filereadable(l:file_name)
+        " TODO: there might be a file name that is not a full path, but could still be found by the
+        " 'find' command.
+        exec('find ' . l:file_name)
+        return
+      end
+    else
+      exec(':buffer ' . l:buffer_number)
+      return
+    endif
+  endfor
+  echom('Could not open buffer for ' . l:file_names)
+endfunction
+
+" Move current file to the split to the right, and move the focus there as well.
+function! OpenSameFileInOppositeWindow()
+  let l:current_file = expand('%:p')
+  let l:initial_win_nr = winnr()
+  if !SwitchToOppositeWindow()
+    return
+  end
+  let l:dest_win_nr = winnr()
+
+  call EnsureChangesSaved()
+
+  " Open the current file in the target window.
+  " TODO: what happens if file name has spaces? Do we need to do escaping?
+  execute("normal! :edit " . l:current_file . "\<cr>")
+
+  " Go back to the window we were in and save any unsaved changes there.
+  call SwitchToWindowByNumber(l:initial_win_nr)
+  call EnsureChangesSaved()
+
+  " Use C-^ to 'edit alternate file' (mostly previously opened file).
+  " http://stackoverflow.com/questions/19971023/how-to-go-back-to-previous-opened-file-in-vim
+  execute("normal! \<C-^>")
+
+  " Move the focus to the window that we've just moved the file we were editing to.
+  call SwitchToWindowByNumber(l:dest_win_nr)
+endfunction
+
+" Duplicate the current file in the window (split) to the right. This can be expanded to open the
+" file without losing focus, to swap files between splits, etc.
+" Key combination explanation:
+" o for 'opposite'
+" w for 'window'
+nnoremap <leader>ow :call OpenSameFileInOppositeWindow()<cr>
+
+function! AutoResizeWindowByNumber(win_index)
+  let l:buf_name = bufname(winbufnr(a:win_index))
+  if IsNerdTreeBufName(l:buf_name)
+    let l:new_width = 50
+  elseif IsTagbarBufName(l:buf_name)
+    let l:new_width = 70
+  else
+    let l:new_width = 110
+  end
+  execute("normal! :" . a:win_index . ".windo vertical resize " . l:new_width . "\<cr>")
+endfunction
+
+" Automatically set window widths to sensible values for a multi-column layout with NERDTree
+" occupying the leftmost window.
+"
+" References:
+" http://vi.stackexchange.com/questions/514/how-to-change-the-current-splits-width-and-height
+" http://vim.1045645.n5.nabble.com/how-to-get-list-of-open-windows-td1164662.html
+" Also this will be useful for getting the total usable window width:
+" http://stackoverflow.com/questions/26315925/get-usable-window-width-in-vim-script
+" TODO: add more smarts:
+" - Evenly distribute excess width between editor windows.
+" - Preserve current window width if it is within the reasonable range (more than a certain
+"   min width for each window type).
+" General info on windo():
+" http://vim.wikia.com/wiki/Run_a_command_in_multiple_buffers
+function! AutoSetWindowWidth()
+  " This assumes there are only vertical splits.  Don't set the last window width because it should
+  " automatically take all the available width.
+  let l:cur_win = winnr()
+  for l:win_index in range(1, winnr('$'))
+    call AutoResizeWindowByNumber(l:win_index)
+  endfor
+  " Go through NerdTree windows and set their width again because they might have shifted.
+  for l:win_index in range(1, winnr('$'))
+    if IsNerdTreeWindowByNumber(l:win_index)
+      call AutoResizeWindowByNumber(l:win_index)
+    endif
+  endfor
+  "execute("normal! :" . l:cur_win . "wincmd w")
+  " https://www.reddit.com/r/vim/comments/3aldvk/switch_to_a_split_depending_on_its_name/
+  execute l:cur_win "wincmd w"
+endfunction
+
+nnoremap <leader>sww :call AutoSetWindowWidth()<cr>
+
+" -------------------------------------------------------------------------------------------------
+" Search highlighting
+
+let g:yb_search_highlight_state = 0
+set nohlsearch
+
+function! ToggleSearchHiglighting()
+  let g:yb_search_highlight_state = !g:yb_search_highlight_state
+  if g:yb_search_highlight_state
+    execute(':set hlsearch')
+    echo 'Turned search highlighting on'
+  else
+    execute(':set nohlsearch')
+    echo 'Turned search highlighting off'
+ endif
+endfunction
+
+nnoremap <leader>/ :call ToggleSearchHiglighting()<cr>
+
+imap jk <Esc>
